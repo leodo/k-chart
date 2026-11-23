@@ -1,0 +1,20 @@
+# 本地虚拟环境
+.venv/
+
+# 行情缓存 / 运行时数据（体积大且可再生；symbols.json 是项目配置，保留）
+data/*.sqlite3
+data/*.sqlite3.*
+data/*.png
+data/vix_host.txt
+
+# 调试 / 截图产物
+scripts/shots/
+
+# 工作记忆（本地辅助文件）
+.workbuddy/
+
+# Python / Node 通用
+__pycache__/
+*.py[cod]
+node_modules/
+.DS_Store

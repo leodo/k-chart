@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>隐波总览 · k-chart</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./vix.css" />
+</head>
+<body>
+  <div class="vix-app">
+    <header class="vix-head">
+      <div class="vix-brand">隐波总览 <span>30 天隐含波动率指数（近似 VIX）</span></div>
+      <div class="vix-head-actions">
+        <a class="btn" href="./index.html">← K 线</a>
+        <button id="vix-refresh" class="btn" title="后台重算全部品种">重算</button>
+        <span id="vix-status" class="status">加载中…</span>
+      </div>
+    </header>
+
+    <section id="vix-list-view" class="vix-view">
+      <div class="vix-toolbar">
+        <input id="vix-search" type="text" placeholder="搜索品种代码或名称" autocomplete="off" />
+        <label>交易所
+          <select id="vix-exchange"><option value="">全部</option></select>
+        </label>
+        <span class="vix-hint">点击表头排序 · 点击行查看走势</span>
+      </div>
+      <div class="vix-table-wrap">
+        <table class="vix-table">
+          <thead>
+            <tr>
+              <th data-key="symbol">代码</th>
+              <th data-key="name">名称</th>
+              <th data-key="exchange">交易所</th>
+              <th data-key="vix" class="num sortable active desc">最新 VIX <span class="sort-arrow">▼</span></th>
+              <th data-key="change" class="num sortable">日变化 <span class="sort-arrow">↕</span></th>
+              <th data-key="iv_near" class="num sortable">近月 IV <span class="sort-arrow">↕</span></th>
+              <th data-key="iv_next" class="num sortable">次月 IV <span class="sort-arrow">↕</span></th>
+              <th data-key="date">日期</th>
+            </tr>
+          </thead>
+          <tbody id="vix-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="vix-detail-view" class="vix-view" hidden>
+      <div class="vix-detail-head">
+        <button id="vix-back" class="btn">← 返回列表</button>
+        <div>
+          <h2 id="vix-detail-title">—</h2>
+          <p id="vix-detail-meta">—</p>
+        </div>
+        <div id="vix-detail-last" class="vix-last">—</div>
+      </div>
+      <div class="vix-chart-wrap">
+        <canvas id="vix-canvas"></canvas>
+      </div>
+      <p class="vix-note">近月/次近月平值期权用 Black-76 反推隐含波动率，再按日历天插值到 30 天；与交易所官方 VIX 口径不同，仅作横向比较参考。</p>
+    </section>
+  </div>
+  <script type="module" src="./js/vix.js"></script>
+</body>
+</html>

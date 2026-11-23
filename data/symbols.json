@@ -1,0 +1,518 @@
+[
+  {
+    "code": "ICL9",
+    "market": 47,
+    "name": "中证加权",
+    "exchange": "CFFEX"
+  },
+  {
+    "code": "IFL9",
+    "market": 47,
+    "name": "沪深加权",
+    "exchange": "CFFEX"
+  },
+  {
+    "code": "IHL9",
+    "market": 47,
+    "name": "上证加权",
+    "exchange": "CFFEX"
+  },
+  {
+    "code": "IML9",
+    "market": 47,
+    "name": "中千加权",
+    "exchange": "CFFEX"
+  },
+  {
+    "code": "TFL9",
+    "market": 47,
+    "name": "五债加权",
+    "exchange": "CFFEX"
+  },
+  {
+    "code": "TL9",
+    "market": 47,
+    "name": "十债加权",
+    "exchange": "CFFEX"
+  },
+  {
+    "code": "TLL9",
+    "market": 47,
+    "name": "30债加权",
+    "exchange": "CFFEX"
+  },
+  {
+    "code": "TSL9",
+    "market": 47,
+    "name": "二债加权",
+    "exchange": "CFFEX"
+  },
+  {
+    "code": "APL9",
+    "market": 28,
+    "name": "苹果加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "CFL9",
+    "market": 28,
+    "name": "郑棉加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "CJL9",
+    "market": 28,
+    "name": "红枣加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "CYL9",
+    "market": 28,
+    "name": "棉纱加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "FGL9",
+    "market": 28,
+    "name": "玻璃加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "MAL9",
+    "market": 28,
+    "name": "甲醇加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "OIL9",
+    "market": 28,
+    "name": "菜油加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "PFL9",
+    "market": 28,
+    "name": "短纤加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "PKL9",
+    "market": 28,
+    "name": "花生加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "PLL9",
+    "market": 28,
+    "name": "丙烯加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "PRL9",
+    "market": 28,
+    "name": "瓶片加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "PXL9",
+    "market": 28,
+    "name": "对二甲苯加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "RML9",
+    "market": 28,
+    "name": "菜粕加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "RSL9",
+    "market": 28,
+    "name": "菜籽加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "SAL9",
+    "market": 28,
+    "name": "纯碱加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "SFL9",
+    "market": 28,
+    "name": "硅铁加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "SHL9",
+    "market": 28,
+    "name": "烧碱加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "SML9",
+    "market": 28,
+    "name": "锰硅加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "SOL9",
+    "market": 28,
+    "name": "葵油加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "SRL9",
+    "market": 28,
+    "name": "白糖加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "TAL9",
+    "market": 28,
+    "name": "PTA加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "URL9",
+    "market": 28,
+    "name": "尿素加权",
+    "exchange": "CZCE"
+  },
+  {
+    "code": "AL9",
+    "market": 29,
+    "name": "豆一加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "BBL9",
+    "market": 29,
+    "name": "胶板加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "BL9",
+    "market": 29,
+    "name": "豆二加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "BZL9",
+    "market": 29,
+    "name": "纯苯加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "CL9",
+    "market": 29,
+    "name": "玉米加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "CSL9",
+    "market": 29,
+    "name": "淀粉加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "EBL9",
+    "market": 29,
+    "name": "苯乙烯加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "EGL9",
+    "market": 29,
+    "name": "乙二醇加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "FBL9",
+    "market": 29,
+    "name": "纤板加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "IL9",
+    "market": 29,
+    "name": "铁矿加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "JDL9",
+    "market": 29,
+    "name": "鸡蛋加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "JL9",
+    "market": 29,
+    "name": "焦炭加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "JML9",
+    "market": 29,
+    "name": "焦煤加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "L-FL9",
+    "market": 29,
+    "name": "聚乙烯月均价加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "LGL9",
+    "market": 29,
+    "name": "原木加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "LHL9",
+    "market": 29,
+    "name": "生猪加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "LL9",
+    "market": 29,
+    "name": "聚乙烯加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "ML9",
+    "market": 29,
+    "name": "豆粕加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "PGL9",
+    "market": 29,
+    "name": "液化气加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "PL9",
+    "market": 29,
+    "name": "棕榈加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "PP-FL9",
+    "market": 29,
+    "name": "聚丙烯月均价加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "PPL9",
+    "market": 29,
+    "name": "聚丙烯加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "RRL9",
+    "market": 29,
+    "name": "粳米加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "V-FL9",
+    "market": 29,
+    "name": "PVC月均价加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "VL9",
+    "market": 29,
+    "name": "PVC加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "YL9",
+    "market": 29,
+    "name": "豆油加权",
+    "exchange": "DCE"
+  },
+  {
+    "code": "LCL9",
+    "market": 66,
+    "name": "碳酸锂加权",
+    "exchange": "GFEX"
+  },
+  {
+    "code": "PDL9",
+    "market": 66,
+    "name": "钯金加权",
+    "exchange": "GFEX"
+  },
+  {
+    "code": "PSL9",
+    "market": 66,
+    "name": "多晶硅加权",
+    "exchange": "GFEX"
+  },
+  {
+    "code": "PTL9",
+    "market": 66,
+    "name": "铂金加权",
+    "exchange": "GFEX"
+  },
+  {
+    "code": "SIL9",
+    "market": 66,
+    "name": "工业硅加权",
+    "exchange": "GFEX"
+  },
+  {
+    "code": "ADL9",
+    "market": 30,
+    "name": "铝合金加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "AGL9",
+    "market": 30,
+    "name": "白银加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "ALL9",
+    "market": 30,
+    "name": "沪铝加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "AOL9",
+    "market": 30,
+    "name": "氧化铝加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "AUL9",
+    "market": 30,
+    "name": "黄金加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "BCL9",
+    "market": 30,
+    "name": "国际铜加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "BRL9",
+    "market": 30,
+    "name": "顺丁橡胶加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "BUL9",
+    "market": 30,
+    "name": "沥青加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "CUL9",
+    "market": 30,
+    "name": "沪铜加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "ECL9",
+    "market": 30,
+    "name": "欧线集运加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "FUL9",
+    "market": 30,
+    "name": "燃油加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "HCL9",
+    "market": 30,
+    "name": "热卷加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "LUL9",
+    "market": 30,
+    "name": "低硫油加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "NIL9",
+    "market": 30,
+    "name": "沪镍加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "NRL9",
+    "market": 30,
+    "name": "20号胶加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "OPL9",
+    "market": 30,
+    "name": "胶版纸加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "PBL9",
+    "market": 30,
+    "name": "沪铅加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "RBL9",
+    "market": 30,
+    "name": "螺纹加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "RUL9",
+    "market": 30,
+    "name": "橡胶加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "SCL9",
+    "market": 30,
+    "name": "原油加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "SNL9",
+    "market": 30,
+    "name": "沪锡加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "SPL9",
+    "market": 30,
+    "name": "纸浆加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "SSL9",
+    "market": 30,
+    "name": "不锈钢加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "WRL9",
+    "market": 30,
+    "name": "线材加权",
+    "exchange": "SHFE"
+  },
+  {
+    "code": "ZNL9",
+    "market": 30,
+    "name": "沪锌加权",
+    "exchange": "SHFE"
+  }
+]
