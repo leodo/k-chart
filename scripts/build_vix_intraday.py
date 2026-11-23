@@ -48,6 +48,9 @@ def main() -> None:
                         vix_store.upsert_intraday(rows)
                         stats["ok"] += 1
                     else:
+                        # 算法修订后若该品种算不出有效隐波，清掉旧版本缓存，
+                        # 避免前端继续叠加一份错误的历史曲线。
+                        vix_store.delete_intraday(symbol["code"], period)
                         stats["empty"] += 1
                 except Exception as exc:
                     stats["error"] += 1

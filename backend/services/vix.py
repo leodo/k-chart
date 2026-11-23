@@ -223,6 +223,29 @@ def intraday_closes(api: TdxExHq_API, market: int, code: str, category: int,
     return out
 
 
+def _forward_fill(closes: dict[str, float], stamps: list[str], max_gap: int = 6) -> dict[str, float]:
+    """期权合约 minute/5m K 线只在有成交时才有记录，虚值一侧常常缺档。
+
+    在同一交易日内用最近一笔成交价补齐缺失 bar（最多 max_gap 根），
+    这样加权时不会突然改用远端的另一档，隐波曲线的跳动也更贴近盘口。
+    """
+    out: dict[str, float] = {}
+    last = 0.0
+    last_day = ""
+    gap = 0
+    for stamp in stamps:
+        day = stamp[:10]
+        price = closes.get(stamp, 0.0)
+        if price > 0:
+            last, last_day, gap = price, day, 0
+        elif last > 0 and day == last_day and gap < max_gap:
+            gap += 1
+            out[stamp] = last
+        else:
+            last = 0.0
+    return out
+
+
 def _time_to_expiry(expiry: str, stamp: str, exchange: str = "") -> float:
     end = datetime.combine(expiry_date(expiry, exchange), datetime.min.time()).replace(hour=15)
     current = datetime.strptime(stamp, "%Y-%m-%d %H:%M")
@@ -245,8 +268,8 @@ def _pick_strikes(chain: list[dict[str, Any]], expiry: str, ref: float, count: i
 def _smooth_intraday(values: list[float]) -> list[float]:
     """去单点脏价，保留真实方向变化（下跌抬 IV、反弹降 IV 不能被抹平）。
 
-    两步：先用前后各 2 根的中位作参照，把偏离超过 12% 的孤立点替换掉
-    （夜盘收尾的脏报价）；再做 3 点中位 + 轻度 EWMA 去毛刺。
+    两步：先用前后各 2 根的中位作参照，把偏离超过 12% 的孤立点替换掉；
+    再做 3 点中位。不做跨 bar 的指数平滑，避免盘中突然的隐波变化被抹平。
     """
     if not values:
         return []
@@ -262,10 +285,9 @@ def _smooth_intraday(values: list[float]) -> list[float]:
         statistics.median(robust[max(0, i - 1):min(len(robust), i + 2)])
         for i in range(len(robust))
     ]
-    out = [med[0]]
-    for value in med[1:]:
-        out.append(out[-1] * 0.5 + value * 0.5)
-    return out
+    # 只做三点中位去孤立毛刺，不再做 EWMA：盘中急涨急跌对应的隐波变化
+    # 会被指数平滑抹掉，导致叠加线比真实盘口滞后半个到一个 bar。
+    return med
 
 
 def _atm_strike(chain: list[dict[str, Any]], expiry: str, forward: float) -> float | None:
@@ -304,14 +326,16 @@ def weighted_iv(f: float, t: float, strikes: list[float],
     for k in strikes:
         call_px = closes.get(("call", k), {}).get(stamp, 0.0)
         put_px = closes.get(("put", k), {}).get(stamp, 0.0)
-        if k >= f and call_px > 0:
+        # 只取虚值一侧：虚值缺价时宁可跳过这一档，也不能把实值价格
+        # 按相反方向反推（旧代码把 put 当 call 算，会制造假的隐波尖刺）。
+        if k >= f:
+            if call_px <= 0:
+                continue
             price, is_call = call_px, True
-        elif k < f and put_px > 0:
-            price, is_call = put_px, False
         else:
-            price, is_call = (call_px or put_px), k >= f
-        if price <= 0:
-            continue
+            if put_px <= 0:
+                continue
+            price, is_call = put_px, False
         iv = implied_vol(price, f, k, t, is_call)
         if not math.isfinite(iv):
             continue
@@ -496,6 +520,11 @@ def compute_symbol_intraday(api: TdxExHq_API, symbol: dict[str, Any],
                     option_closes[(expiry, cp, strike)] = intraday_closes(api, market, code, category, blocks)
 
     stamps = sorted(set().union(*(set(futures[e]) for e in expiries)))
+    # 期权 5m K 线只有成交时才有记录；在当日邻 bar 内补齐最近成交价，
+    # 避免某一档偶然无成交时权重突然跳到远端行权价。
+    filled_closes: dict[tuple[str, str, float], dict[str, float]] = {}
+    for key, series in option_closes.items():
+        filled_closes[key] = _forward_fill(series, stamps, max_gap=2)
     rows: list[dict[str, Any]] = []
     for stamp in stamps:
         available: list[tuple[float, float, float]] = []
@@ -507,7 +536,7 @@ def compute_symbol_intraday(api: TdxExHq_API, symbol: dict[str, Any],
             t = _time_to_expiry(expiry, stamp, symbol["exchange"])
             if t <= 0:
                 continue
-            per_expiry = {(cp, k): v for (e, cp, k), v in option_closes.items() if e == expiry}
+            per_expiry = {(cp, k): v for (e, cp, k), v in filled_closes.items() if e == expiry}
             iv = weighted_iv(f, t, strikes[expiry], per_expiry, stamp, expiry)
             if not math.isfinite(iv):
                 continue
@@ -625,6 +654,20 @@ class VixStore:
                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 payload,
             )
+            self._conn.commit()
+
+    def delete_intraday(self, symbol: str, period: str | None = None) -> None:
+        """删除旧缓存：算法修正后重算为空的品种不应继续显示过期序列。"""
+        with self._lock:
+            if period:
+                self._db().execute(
+                    "DELETE FROM vix_intraday WHERE symbol=? AND period=?",
+                    (symbol.upper(), period),
+                )
+            else:
+                self._db().execute(
+                    "DELETE FROM vix_intraday WHERE symbol=?", (symbol.upper(),)
+                )
             self._conn.commit()
 
     def series_intraday(self, symbol: str, period: str, limit: int = 2000) -> list[dict[str, Any]]:
