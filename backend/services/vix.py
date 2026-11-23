@@ -107,13 +107,47 @@ def option_products(options: Iterable[dict[str, Any]]) -> set[tuple[str, str]]:
     return {(item["exchange"], item["product"]) for item in options}
 
 
+def _nth_weekday(year: int, month: int, n: int, from_end: bool = False,
+                 before_day: int | None = None) -> date:
+    """某月第 n 个工作日，from_end=True 时取倒数第 n 个（可限定某日之前）。"""
+    last = calendar.monthrange(year, month)[1]
+    day = (before_day or last) if from_end else 1
+    step = -1 if from_end else 1
+    count = 0
+    while 1 <= day <= last:
+        if date(year, month, day).weekday() < 5:
+            count += 1
+            if count == n:
+                return date(year, month, day)
+        day += step
+    return date(year, month, day - step)
+
+
 def expiry_date(expiry: str, exchange: str = "") -> date:
-    """到期日近似：中金所股指期权为当月第三个周五，商品期权用合约月 5 号近似。"""
+    """期权到期日。期权月份是标的期货的【交割月】，到期一般落在交割月前一个月。
+
+    各交易所规则（节假日用工作日近似，误差几天、不影响 30 天口径）：
+      - SHFE：交割月前一个月倒数第 5 个交易日（AU2612 → 2026-11-24）
+      - DCE ：交割月前一个月第 12 个交易日
+      - CZCE：交割月前一个月 15 日之前（含）的倒数第 3 个交易日
+      - GFEX：交割月前一个月第 5 个交易日
+      - CFFEX：合约月第三个周五
+    """
     year, month = int(expiry[:4]), int(expiry[4:])
     if exchange == "CFFEX":
         first = date(year, month, 1)
         return first + timedelta(days=(4 - first.weekday()) % 7 + 14)
-    return date(year, month, 5)
+    if month == 1:
+        y, m = year - 1, 12
+    else:
+        y, m = year, month - 1
+    if exchange == "DCE":
+        return _nth_weekday(y, m, 12)
+    if exchange == "CZCE":
+        return _nth_weekday(y, m, 3, from_end=True, before_day=15)
+    if exchange == "GFEX":
+        return _nth_weekday(y, m, 5)
+    return _nth_weekday(y, m, 5, from_end=True)
 
 
 def _n(x: float) -> float:
@@ -209,12 +243,24 @@ def _pick_strikes(chain: list[dict[str, Any]], expiry: str, ref: float, count: i
 
 
 def _smooth_intraday(values: list[float]) -> list[float]:
-    """日内只需去掉单点脏价，不能把真实的方向变化抹平。"""
+    """去单点脏价，保留真实方向变化（下跌抬 IV、反弹降 IV 不能被抹平）。
+
+    两步：先用前后各 2 根的中位作参照，把偏离超过 12% 的孤立点替换掉
+    （夜盘收尾的脏报价）；再做 3 点中位 + 轻度 EWMA 去毛刺。
+    """
     if not values:
         return []
+    robust: list[float] = []
+    for i, value in enumerate(values):
+        window = values[max(0, i - 2):min(len(values), i + 3)]
+        local = statistics.median(window)
+        if local > 0 and abs(value - local) / local > 0.12:
+            robust.append(local)
+        else:
+            robust.append(value)
     med = [
-        statistics.median(values[max(0, i - 1):min(len(values), i + 2)])
-        for i in range(len(values))
+        statistics.median(robust[max(0, i - 1):min(len(robust), i + 2)])
+        for i in range(len(robust))
     ]
     out = [med[0]]
     for value in med[1:]:
@@ -242,6 +288,39 @@ def _option_code(chain: list[dict[str, Any]], expiry: str, cp: str, strike: floa
     return None
 
 
+def weighted_iv(f: float, t: float, strikes: list[float],
+                closes: dict[tuple[str, float], dict[str, float]],
+                stamp: str, expiry: str) -> float:
+    """ATM 附近多档虚值期权加权 IV：单点脏价/行权价切换不再造成尖刺。
+
+    - 每档只取虚值一侧（K>=F 取 call，K<F 取 put），避开深度实值结算滞后；
+    - 以 1/(1+d²) 按到现价的距离衰减加权，近 ATM 权重大、远端虚值影响小；
+    - 至少要有 1 档有效报价，否则返回 nan 由上层跳过的该时点。
+    """
+    if not strikes or t <= 0 or f <= 0:
+        return float("nan")
+    step = min((abs(strikes[i + 1] - strikes[i]) for i in range(len(strikes) - 1)), default=1.0)
+    numerator = weight_sum = 0.0
+    for k in strikes:
+        call_px = closes.get(("call", k), {}).get(stamp, 0.0)
+        put_px = closes.get(("put", k), {}).get(stamp, 0.0)
+        if k >= f and call_px > 0:
+            price, is_call = call_px, True
+        elif k < f and put_px > 0:
+            price, is_call = put_px, False
+        else:
+            price, is_call = (call_px or put_px), k >= f
+        if price <= 0:
+            continue
+        iv = implied_vol(price, f, k, t, is_call)
+        if not math.isfinite(iv):
+            continue
+        weight = 1.0 / (1.0 + ((k - f) / step) ** 2)
+        numerator += weight * iv
+        weight_sum += weight
+    return numerator / weight_sum if weight_sum > 0 else float("nan")
+
+
 def compute_symbol(api: TdxExHq_API, symbol: dict[str, Any], options: list[dict[str, Any]], days: int = 260) -> list[dict[str, Any]]:
     product = product_of(symbol["code"])
     opt_product = option_product_of(symbol["code"])
@@ -259,8 +338,14 @@ def compute_symbol(api: TdxExHq_API, symbol: dict[str, Any], options: list[dict[
     chain = unique
 
     today = date.today()
-    expiries = sorted({item["expiry"] for item in chain
-                       if expiry_date(item["expiry"], symbol["exchange"]) > today})[:2]
+    # 近月剩余不足 8 天时整段序列改用下一对到期（VIX 换月规则）：
+    # 到期周时间价值趋零，IV 会失控并把叠加线拉出尖刺。
+    candidates = sorted({item["expiry"] for item in chain
+                         if (expiry_date(item["expiry"], symbol["exchange"]) - today).days > 0})
+    expiries = [e for e in candidates
+                if (expiry_date(e, symbol["exchange"]) - today).days > 8][:2]
+    if len(expiries) < 2:
+        expiries = candidates[:2]
     if not expiries:
         return []
 
@@ -305,19 +390,11 @@ def compute_symbol(api: TdxExHq_API, symbol: dict[str, Any], options: list[dict[
             f = futures[expiry].get(day, 0.0)
             if not f or not strikes[expiry]:
                 continue
-            strike = min(strikes[expiry], key=lambda k: abs(k - f))
-            call_px = option_closes.get((expiry, "call", strike), {}).get(day, 0.0)
-            put_px = option_closes.get((expiry, "put", strike), {}).get(day, 0.0)
             t = (expiry_date(expiry, symbol["exchange"]) - date.fromisoformat(day)).days / 365
-            if t <= 0 or not (call_px > 0 or put_px > 0):
+            if t <= 0:
                 continue
-            # 取虚值一侧：深度实值期权结算价滞后，反推的 IV 噪声很大。
-            if strike >= f and call_px > 0:
-                iv = implied_vol(call_px, f, strike, t, True)
-            elif strike < f and put_px > 0:
-                iv = implied_vol(put_px, f, strike, t, False)
-            else:
-                iv = implied_vol(call_px or put_px, f, strike, t, strike >= f)
+            per_expiry = {(cp, k): v for (e, cp, k), v in option_closes.items() if e == expiry}
+            iv = weighted_iv(f, t, strikes[expiry], per_expiry, day, expiry)
             if not math.isfinite(iv):
                 continue
             available.append((t, iv * iv, iv))
@@ -385,8 +462,14 @@ def compute_symbol_intraday(api: TdxExHq_API, symbol: dict[str, Any],
     chain = unique
 
     today = date.today()
-    expiries = sorted({item["expiry"] for item in chain
-                       if expiry_date(item["expiry"], symbol["exchange"]) > today})[:2]
+    # 近月剩余不足 8 天时整段序列改用下一对到期（VIX 换月规则）：
+    # 到期周时间价值趋零，IV 会失控并把叠加线拉出尖刺。
+    candidates = sorted({item["expiry"] for item in chain
+                         if (expiry_date(item["expiry"], symbol["exchange"]) - today).days > 0})
+    expiries = [e for e in candidates
+                if (expiry_date(e, symbol["exchange"]) - today).days > 8][:2]
+    if len(expiries) < 2:
+        expiries = candidates[:2]
     if not expiries:
         return []
 
@@ -421,18 +504,11 @@ def compute_symbol_intraday(api: TdxExHq_API, symbol: dict[str, Any],
             f = futures[expiry].get(stamp, 0.0)
             if not f or not strikes[expiry]:
                 continue
-            strike = min(strikes[expiry], key=lambda k: abs(k - f))
-            call_px = option_closes.get((expiry, "call", strike), {}).get(stamp, 0.0)
-            put_px = option_closes.get((expiry, "put", strike), {}).get(stamp, 0.0)
             t = _time_to_expiry(expiry, stamp, symbol["exchange"])
-            if t <= 0 or not (call_px > 0 or put_px > 0):
+            if t <= 0:
                 continue
-            if strike >= f and call_px > 0:
-                iv = implied_vol(call_px, f, strike, t, True)
-            elif strike < f and put_px > 0:
-                iv = implied_vol(put_px, f, strike, t, False)
-            else:
-                iv = implied_vol(call_px or put_px, f, strike, t, strike >= f)
+            per_expiry = {(cp, k): v for (e, cp, k), v in option_closes.items() if e == expiry}
+            iv = weighted_iv(f, t, strikes[expiry], per_expiry, stamp, expiry)
             if not math.isfinite(iv):
                 continue
             available.append((t, iv * iv, iv))
