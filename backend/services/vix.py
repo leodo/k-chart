@@ -326,16 +326,22 @@ def weighted_iv(f: float, t: float, strikes: list[float],
     for k in strikes:
         call_px = closes.get(("call", k), {}).get(stamp, 0.0)
         put_px = closes.get(("put", k), {}).get(stamp, 0.0)
-        # 只取虚值一侧：虚值缺价时宁可跳过这一档，也不能把实值价格
-        # 按相反方向反推（旧代码把 put 当 call 算，会制造假的隐波尖刺）。
+        # 优先取虚值一侧；虚值缺价时可用实值一侧，但必须按真实方向反推
+        # （旧代码把 put 当 call 算，会制造假的隐波尖刺）。
         if k >= f:
-            if call_px <= 0:
+            if call_px > 0:
+                price, is_call = call_px, True
+            elif put_px > 0:
+                price, is_call = put_px, False
+            else:
                 continue
-            price, is_call = call_px, True
         else:
-            if put_px <= 0:
+            if put_px > 0:
+                price, is_call = put_px, False
+            elif call_px > 0:
+                price, is_call = call_px, True
+            else:
                 continue
-            price, is_call = put_px, False
         iv = implied_vol(price, f, k, t, is_call)
         if not math.isfinite(iv):
             continue
@@ -460,16 +466,26 @@ def compute_symbol(api: TdxExHq_API, symbol: dict[str, Any], options: list[dict[
     return rows
 
 
-def compute_symbol_intraday(api: TdxExHq_API, symbol: dict[str, Any],
-                            options: list[dict[str, Any]], period: str,
-                            blocks: int = 2) -> list[dict[str, Any]]:
-    """用期权与期货的同期日内 K 线反推每个 bar 的 30 天隐波。
+# 隐波统一先用 1 分钟 K 线实算，再聚合到目标周期。
+# 5m K 线里期权常常整根没有成交，逐根反推会产生 27→36 的假跳变；
+# 1m 数据点多、成交更连续，聚合后曲线更接近分时盘口隐波。
+INTRADAY_SOURCE_CATEGORY = TDXParams.KLINE_TYPE_1MIN
+INTRADAY_BUCKET_MINUTES = {"5m": 5, "15m": 15, "30m": 30, "1h": 60}
 
-    与日线序列不同，这里能反映盘中涨跌对应的隐波变化：下跌时 IV 抬升、反弹时回落。
-    """
-    category = INTRADAY_CATEGORIES.get(period)
-    if category is None:
-        return []
+
+def _bucket_label(stamp: str, minutes: int) -> str:
+    """把 1m 时间戳归到所属 K 线的结束时刻（尾端对齐，如 21:01→21:05）。"""
+    dt = datetime.strptime(stamp, "%Y-%m-%d %H:%M")
+    index = math.ceil((dt.hour * 60 + dt.minute) / minutes)
+    label = dt.replace(hour=0, minute=0) + timedelta(minutes=index * minutes)
+    return label.strftime("%Y-%m-%d %H:%M")
+
+
+def compute_symbol_intraday_base(api: TdxExHq_API, symbol: dict[str, Any],
+                                 options: list[dict[str, Any]],
+                                 blocks: int = 8) -> list[dict[str, Any]]:
+    """用 1 分钟期权与期货 K 线反推每个 1m bar 的 30 天隐波。"""
+    category = INTRADAY_SOURCE_CATEGORY
     product = product_of(symbol["code"])
     opt_product = option_product_of(symbol["code"])
     chain = [
@@ -486,8 +502,6 @@ def compute_symbol_intraday(api: TdxExHq_API, symbol: dict[str, Any],
     chain = unique
 
     today = date.today()
-    # 近月剩余不足 8 天时整段序列改用下一对到期（VIX 换月规则）：
-    # 到期周时间价值趋零，IV 会失控并把叠加线拉出尖刺。
     candidates = sorted({item["expiry"] for item in chain
                          if (expiry_date(item["expiry"], symbol["exchange"]) - today).days > 0})
     expiries = [e for e in candidates
@@ -520,11 +534,10 @@ def compute_symbol_intraday(api: TdxExHq_API, symbol: dict[str, Any],
                     option_closes[(expiry, cp, strike)] = intraday_closes(api, market, code, category, blocks)
 
     stamps = sorted(set().union(*(set(futures[e]) for e in expiries)))
-    # 期权 5m K 线只有成交时才有记录；在当日邻 bar 内补齐最近成交价，
-    # 避免某一档偶然无成交时权重突然跳到远端行权价。
+    # 1m 期权同样可能整分钟无成交：同日内最多沿用 10 分钟最近成交价。
     filled_closes: dict[tuple[str, str, float], dict[str, float]] = {}
     for key, series in option_closes.items():
-        filled_closes[key] = _forward_fill(series, stamps, max_gap=2)
+        filled_closes[key] = _forward_fill(series, stamps, max_gap=10)
     rows: list[dict[str, Any]] = []
     for stamp in stamps:
         available: list[tuple[float, float, float]] = []
@@ -559,7 +572,7 @@ def compute_symbol_intraday(api: TdxExHq_API, symbol: dict[str, Any],
 
         rows.append({
             "symbol": symbol["code"],
-            "period": period,
+            "period": "1m",
             "time": stamp,
             "ts": trading_ts(stamp),
             "vix": 100 * math.sqrt(max(0.0, var30)),
@@ -576,7 +589,7 @@ def compute_symbol_intraday(api: TdxExHq_API, symbol: dict[str, Any],
         for row in rows:
             if row[key] is not None:
                 row[key] = round(next(smoothed), 2)
-    # 个别 bar 期权无有效报价时沿用上一个值，避免叠加线断成碎段。
+    # 个别分钟期权无有效报价时沿用上一个值，避免聚合时空洞太多。
     last: dict[str, float] = {}
     for row in rows:
         for key in ("vix", "iv_near", "iv_next"):
@@ -586,6 +599,70 @@ def compute_symbol_intraday(api: TdxExHq_API, symbol: dict[str, Any],
             elif key in last:
                 row[key] = last[key]
     return rows
+
+
+def aggregate_intraday(base_rows: list[dict[str, Any]], period: str) -> list[dict[str, Any]]:
+    """把 1m 隐波聚合到 5m/15m/30m/1h：取该 bar 内所有分钟的中位数。"""
+    minutes = INTRADAY_BUCKET_MINUTES.get(period)
+    if not minutes:
+        return []
+    # 1m 序列里仍可能有连续几分钟的脏报价（同一档期权成交价偏离盘口）。
+    # 用前后 5 分钟的中位作参照，偏离 8% 以上的点不参与聚合。
+    values = [r["vix"] for r in base_rows]
+    trend = [
+        statistics.median(values[max(0, i - 5):min(len(values), i + 6)])
+        for i in range(len(values))
+    ]
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for i, row in enumerate(base_rows):
+        value = row["vix"]
+        local = trend[i]
+        if not math.isfinite(value) or value < 3 or value > 200:
+            continue
+        if local > 0 and abs(value - local) / local > 0.08:
+            continue
+        groups.setdefault(_bucket_label(row["time"], minutes), []).append(row)
+
+    out: list[dict[str, Any]] = []
+    for label in sorted(groups):
+        group = groups[label]
+        def median_of(key: str) -> float | None:
+            values = [r[key] for r in group if r.get(key) is not None]
+            return round(statistics.median(values), 2) if values else None
+        out.append({
+            **group[-1],
+            "period": period,
+            "time": label,
+            "ts": trading_ts(label),
+            "vix": round(statistics.median([r["vix"] for r in group]), 2),
+            "iv_near": median_of("iv_near"),
+            "iv_next": median_of("iv_next"),
+        })
+
+    # 聚合后仍可能因某一分钟期权报价失真留下 2~3 根 bar 的低谷；
+    # 用 5 bar 中位作参照，偏离超过 7% 的点替换为参照值（保留正常起伏）。
+    for key in ("vix", "iv_near", "iv_next"):
+        values = [r[key] for r in out]
+        trend = []
+        for i in range(len(values)):
+            window = [v for v in values[max(0, i - 2):min(len(values), i + 3)] if v is not None]
+            trend.append(statistics.median(window) if window else 0.0)
+        for i, row in enumerate(out):
+            value = row[key]
+            if value is None or trend[i] <= 0:
+                continue
+            if abs(value - trend[i]) / trend[i] > 0.07:
+                row[key] = round(trend[i], 2)
+    return out
+
+
+def compute_symbol_intraday(api: TdxExHq_API, symbol: dict[str, Any],
+                            options: list[dict[str, Any]], period: str,
+                            blocks: int = 8) -> list[dict[str, Any]]:
+    """兼容单周期调用：先算 1m 基底，再聚合到目标周期。"""
+    if period not in INTRADAY_BUCKET_MINUTES:
+        return []
+    return aggregate_intraday(compute_symbol_intraday_base(api, symbol, options, blocks), period)
 
 
 class VixStore:
