@@ -31,6 +31,13 @@ export function drawLegend(ctx, g) {
     if (!hidden) {
       const data = g.engine.get(o.id, g.bars, g.version, o.params);
       if (!data) continue;
+      // 九转不画线：图例只显示当前 K 线落在结构里的数字（若有）。
+      if (o.id === 'nine') {
+        const mark = data.nineMarkers?.find(m => m.i === idx);
+        if (mark) {
+          segs.push({ text: ` ${mark.text}  `, color: o.style?.lineColors?.[mark.key] || mark.color });
+        }
+      }
       // 多支撑全部展开会撑爆图例：CH 只显示第 1 条支撑的数值，其余用数量表达；
       // MOS 有 10 条均线，只显示短期1 / 长期1 两条代表值。
       const legendLines = o.id === 'channel'
@@ -81,7 +88,7 @@ export function drawLegend(ctx, g) {
 
   for (const pane of g.panes) {
     if (pane.kind !== 'indicator' || !pane.data) continue;
-    const segs = [{ text: `${pane.title} ▾  `, color: '#cbd6e4' }];
+    const segs = [{ text: `${pane.title}${pane.empty ? '（无数据）' : ''} ▾  `, color: '#cbd6e4' }];
     for (const line of pane.data.lines) {
       if (pane.style?.visible?.[line.key] === false) continue;
       const v = line.values[idx];

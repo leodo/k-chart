@@ -12,6 +12,8 @@ export class Controls {
     this.symbolEl = document.getElementById('symbol');
     this.symbolPicker = document.getElementById('symbol-picker');
     this.symbolButton = document.getElementById('symbol-button');
+    this.symbolPrev = document.getElementById('symbol-prev');
+    this.symbolNext = document.getElementById('symbol-next');
     this.symbolLabel = document.getElementById('symbol-label');
     this.symbolDropdown = document.getElementById('symbol-dropdown');
     this.symbolSearch = document.getElementById('symbol-search');
@@ -52,6 +54,9 @@ export class Controls {
       if (!this.symbolDropdown.hidden) { this.closeSymbolDropdown(); return; }
       this.openSymbolDropdown();
     });
+    this.symbolPrev.addEventListener('click', e => { e.stopPropagation(); this.stepSymbol(-1); });
+    this.symbolNext.addEventListener('click', e => { e.stopPropagation(); this.stepSymbol(1); });
+    document.addEventListener('keydown', e => this.onGlobalKey(e));
     this.symbolSearch.addEventListener('input', () => this.renderSymbolList());
     this.symbolSearch.addEventListener('keydown', e => this.onSymbolKey(e));
     this.symbolSearch.addEventListener('click', e => e.stopPropagation());
@@ -89,6 +94,7 @@ export class Controls {
     }));
     if (selected) this.symbolEl.value = selected;
     this.updateSymbolLabel();
+    this.updateSymbolNav();
   }
 
   updateSymbolLabel() {
@@ -100,6 +106,48 @@ export class Controls {
   setSymbol(value) {
     this.symbolEl.value = value;
     this.updateSymbolLabel();
+    this.updateSymbolNav();
+  }
+
+  /** 按品种列表顺序循环浏览；上一个/下一个按钮与快捷键共用这一条路径。 */
+  stepSymbol(delta) {
+    const n = this.symbols.length;
+    if (n < 2) return;
+    const cur = this.symbols.findIndex(s => s.code === this.symbolEl.value);
+    // 当前品种不在列表里时：下一个从第一个开始，上一个从最后一个开始。
+    const base = cur < 0 ? (delta > 0 ? -1 : 0) : cur;
+    this.chooseSymbol(this.symbols[(base + delta + n) % n].code);
+  }
+
+  updateSymbolNav() {
+    const n = this.symbols.length;
+    const cur = this.symbols.findIndex(s => s.code === this.symbolEl.value);
+    const base = cur < 0 ? 0 : cur;
+    const prev = n ? this.symbols[(base - 1 + n) % n] : null;
+    const next = n ? this.symbols[(base + 1) % n] : null;
+    this.symbolPrev.disabled = n < 2;
+    this.symbolNext.disabled = n < 2;
+    this.symbolPrev.title = prev && n > 1
+      ? `上一个品种：${prev.name} (${prev.code}) · PageUp` : '上一个品种（PageUp）';
+    this.symbolNext.title = next && n > 1
+      ? `下一个品种：${next.name} (${next.code}) · PageDown` : '下一个品种（PageDown）';
+  }
+
+  /** PageUp/PageDown、Alt+←/→ 快速翻品种；输入框/命令面板/筛选列表打开时不抢按键。 */
+  onGlobalKey(e) {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const t = e.target;
+    if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement
+      || t instanceof HTMLTextAreaElement || t?.isContentEditable) return;
+    const palette = document.getElementById('cmd-palette');
+    if (palette && !palette.hidden) return;
+    if (!this.symbolDropdown.hidden) return;
+    let delta = 0;
+    if (e.key === 'PageUp' || (e.altKey && e.key === 'ArrowLeft')) delta = -1;
+    else if (e.key === 'PageDown' || (e.altKey && e.key === 'ArrowRight')) delta = 1;
+    if (!delta) return;
+    e.preventDefault();
+    this.stepSymbol(delta);
   }
 
   openSymbolDropdown() {
@@ -156,6 +204,7 @@ export class Controls {
     if (code === this.symbolEl.value) return;
     this.symbolEl.value = code;
     this.updateSymbolLabel();
+    this.updateSymbolNav();
     this.h.onSymbol(code);
   }
 

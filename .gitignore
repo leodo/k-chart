@@ -4,6 +4,7 @@
 # 行情缓存 / 运行时数据（体积大且可再生；symbols.json 是项目配置，保留）
 data/*.sqlite3
 data/*.sqlite3.*
+data/*.sqlite3-*
 data/*.png
 data/vix_host.txt
 

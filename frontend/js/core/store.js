@@ -7,6 +7,7 @@ export class BarStore extends EventBus {
     this.bars = [];
     this.symbol = '';
     this.period = '5m';
+    this.digits = null; // 价格小数位：伦敦金/银=2，国内期货=null（按量级推断）
     this.version = 0;   // 数据指纹：指标缓存据此失效
   }
 
@@ -14,6 +15,7 @@ export class BarStore extends EventBus {
     this.bars = bars.slice().sort((a, b) => a.ts - b.ts);
     if (meta.symbol) this.symbol = meta.symbol;
     if (meta.period) this.period = meta.period;
+    if (meta.digits !== undefined) this.digits = Number.isFinite(meta.digits) ? meta.digits : null;
     this.version++;
     this.emit('data', { reason: 'reset' });
   }

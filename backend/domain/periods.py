@@ -55,12 +55,18 @@ def trading_day_of(dt: datetime) -> datetime.date:
     return dt.date()
 
 
-def aggregate(bars: Sequence[Bar], spec: PeriodSpec) -> list[Bar]:
-    """按交易时段聚合源 K 线为更大周期。"""
+def aggregate(bars: Sequence[Bar], spec: PeriodSpec, session: str = "cn") -> list[Bar]:
+    """按交易时段聚合源 K 线为更大周期。
+
+    session="global" 用于伦敦金/银这类 24 小时连续品种：4 小时按墙钟整点切片，
+    周线仍按 ISO 周；不做"交易日重置"，也不按交易分钟数累计。
+    """
     if not spec.group_minutes:
         return list(bars)
     if not bars:
         return []
+    if session == "global":
+        return _aggregate_global(bars, spec)
 
     ordered = sorted(bars, key=lambda b: b.ts)
     grouped: list[Bar] = []
@@ -105,6 +111,47 @@ def aggregate(bars: Sequence[Bar], spec: PeriodSpec) -> list[Bar]:
         bucket_index = idx
         bucket.append(bar)
         prev_bucket = key
+
+    flush()
+    return grouped
+
+
+def _aggregate_global(bars: Sequence[Bar], spec: PeriodSpec) -> list[Bar]:
+    """连续交易品种的聚合：4h 按墙钟整点分桶，周线按 ISO 周。"""
+    ordered = sorted(bars, key=lambda b: b.ts)
+    grouped: list[Bar] = []
+    bucket: list[Bar] = []
+    current: object = None
+    weekly = spec.name == "1w"
+
+    def flush() -> None:
+        if not bucket:
+            return
+        grouped.append(
+            Bar(
+                time=bucket[0].time,
+                ts=bucket[0].ts,
+                open=bucket[0].open,
+                high=max(b.high for b in bucket),
+                low=min(b.low for b in bucket),
+                close=bucket[-1].close,
+                volume=sum(b.volume for b in bucket),
+                oi=bucket[-1].oi,
+            )
+        )
+
+    for bar in ordered:
+        if weekly:
+            dt = datetime.strptime(bar.time, "%Y-%m-%d %H:%M")
+            key: object = dt.isocalendar()[:2]
+        else:
+            # 以 epoch 对齐整 4 小时，避免本地时区/夏令时把桶切歪
+            key = int(bar.ts // (spec.group_minutes * 60_000))
+        if current is not None and key != current:
+            flush()
+            bucket = []
+        current = key
+        bucket.append(bar)
 
     flush()
     return grouped

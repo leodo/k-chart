@@ -45,8 +45,15 @@ select, .btn {
 .toolbar #symbol { max-width: 240px; }
 select:hover, .btn:hover { border-color: #3a4a5e; }
 
-/* 品种选择器：点击后顶部出现输入框，可按中文名/代码筛选 */
-.symbol-picker { position: relative; flex: 0 0 auto; }
+/* 品种选择器：两侧箭头按顺序循环浏览全部品种，中间按钮点击后可按中文名/代码筛选 */
+.symbol-picker { position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 3px; }
+.symbol-step {
+  flex: 0 0 auto; width: 24px; height: 28px; padding: 0;
+  background: #1b2430; color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; cursor: pointer; font: inherit; font-size: 19px; line-height: 1;
+}
+.symbol-step:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.symbol-step:disabled { opacity: .4; cursor: default; }
 .symbol-button {
   display: flex; align-items: center; gap: 8px; justify-content: space-between;
   height: 28px; max-width: 240px; min-width: 150px; padding: 0 9px;
@@ -329,8 +336,9 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-act
     align-content: flex-start;
   }
   .toolbar .spacer, .toolbar .sep, .toolbar .brand { display: none; }
-  .toolbar .symbol-picker { flex: 1 1 108px; min-width: 90px; }
-  .toolbar .symbol-button { width: 100%; min-width: 0; max-width: none; height: 32px; overflow: hidden; }
+  .toolbar .symbol-picker { flex: 1 1 132px; min-width: 132px; }
+  .toolbar .symbol-button { flex: 1 1 auto; width: auto; min-width: 0; max-width: none; height: 32px; overflow: hidden; }
+  .toolbar .symbol-step { width: 26px; height: 32px; font-size: 21px; }
   .toolbar .symbol-button #symbol-label { overflow: hidden; text-overflow: ellipsis; }
   .toolbar #periods { flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .toolbar #periods::-webkit-scrollbar { display: none; }

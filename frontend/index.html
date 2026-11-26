@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>k-chart · 期货加权行情</title>
-  <link rel="icon" href="data:," />
+  <link rel="icon" type="image/svg+xml" sizes="any" href="./favicon.svg" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -12,9 +12,11 @@
     <header class="toolbar" id="toolbar">
       <div class="brand">k-chart</div>
       <div id="symbol-picker" class="symbol-picker">
+        <button id="symbol-prev" type="button" class="symbol-step" title="上一个品种（PageUp）" aria-label="上一个品种">‹</button>
         <button id="symbol-button" type="button" class="symbol-button" title="选择品种（可输入中文名或合约代码筛选）">
           <span id="symbol-label">加载中…</span><span class="symbol-caret">▾</span>
         </button>
+        <button id="symbol-next" type="button" class="symbol-step" title="下一个品种（PageDown）" aria-label="下一个品种">›</button>
         <select id="symbol" aria-label="合约" hidden></select>
         <div id="symbol-dropdown" class="symbol-dropdown" hidden>
           <input id="symbol-search" type="text" autocomplete="off" placeholder="输入品种中文名或合约代码，如 豆 / r" />
@@ -27,6 +29,7 @@
       <button id="tool-select" class="btn" title="选择 / 移动图形（Esc）"><span class="sel-ico">↖</span><span class="sel-txt">选择</span></button>
       <button id="auto-lines" class="btn" title="自动画支撑线 / 压力线 / 通道线">自动线</button>
       <button id="vix-toggle" class="btn" title="叠加 30 天隐波指数（独立纵轴）">隐波</button>
+      <button id="nine-toggle" class="btn" title="神奇九转：1~9 / 13 数字标记（可点图例齿轮设置）">九转</button>
       <button id="latest" class="btn primary" title="回到最新 K 线">最新</button>
       <button id="multiview" class="btn" title="四视图：30分 / 60分 / 日线 / 周线（再点一次还原）">四视图</button>
       <button id="toolbar-more" class="btn toolbar-more" title="更多功能" aria-label="更多功能">☰</button>

@@ -167,7 +167,10 @@ export class PaneModel extends EventBus {
   /** 从持久化布局整体恢复面板与叠加实例。 */
   load(config) {
     if (!config) return;
-    const panes = Array.isArray(config.panes) ? config.panes.filter(p => p && REGISTRY[p.indicator] || p?.kind === 'price') : [];
+    // 按 kind 过滤：旧布局里可能残留过期的指标（如曾作为主图叠加的 kd），
+    // 恢复时只接受对应类别，避免副图指标被恢复成主图叠加（或反之）后按错误纵轴绘制。
+    const panes = Array.isArray(config.panes)
+      ? config.panes.filter(p => p?.kind === 'price' || (p && REGISTRY[p.indicator]?.kind === 'pane')) : [];
     if (!panes.length || panes[0].kind !== 'price') return;
     this.panes = panes.map(p => ({
       id: p.id || 'main', kind: p.kind, indicator: p.indicator || null,
@@ -178,7 +181,7 @@ export class PaneModel extends EventBus {
       style: p.kind === 'price' ? null : { ...defaultStyle(p.indicator), ...(p.style || {}) },
     }));
     this.overlays = (Array.isArray(config.overlays) ? config.overlays : [])
-      .filter(o => o && REGISTRY[o.id])
+      .filter(o => o && REGISTRY[o.id]?.kind === 'overlay')
       .map(o => ({
         id: o.id,
         hidden: !!o.hidden,

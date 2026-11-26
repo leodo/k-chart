@@ -184,7 +184,7 @@ export class MultiView {
       const data = await api.bars(symbol, cell.period, PERIOD_LIMIT[cell.period] || 1500);
       if (token !== cell.loadToken || !this.enabled) return;
       this.o.withRestore?.(() => {
-        cell.chart.setData(data.bars, { symbol: data.symbol, period: data.period });
+        cell.chart.setData(data.bars, { symbol: data.symbol, period: data.period, digits: data.digits });
         if (cell.pendingLayout) {
           cell.chart.loadLayout(cell.pendingLayout);
           cell.pendingLayout = null;

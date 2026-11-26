@@ -2,6 +2,7 @@ import {
   sma, tdxSma, ema, wilder, stddev, highest, lowest, closes, trueRange, autoSupports,
 } from './helpers.js';
 import { computeMOS, MOS_LINE_DEFS } from './mos.js';
+import { computeNine, NINE_LINE_DEFS } from './nine.js';
 
 /**
  * 指标注册表：新增指标只需声明 params / lines / title / compute 并注册于此。
@@ -122,6 +123,51 @@ export const REGISTRY = {
     lines: () => MOS_LINE_DEFS.map(({ key, label, color }) => ({ key, label, color })),
     title: p => `MOS(${p.shortN},${p.longN})`,
     compute(bars, p) { return computeMOS(bars, p); },
+  },
+
+  nine: {
+    id: 'nine', name: '神奇九转', short: '九转', kind: 'overlay',
+    params: [
+      P('setup', '比较周期', 4, 1, 20, '连续 N 根收盘价高于/低于 N 根前收盘价（TD 默认 4）'),
+      P('count13', '13 计数', 1, 0, 1, '数满 9 后，继续按 C 与 REF(C,2) 比较数到 13', 1, [[1, '显示'], [0, '隐藏']]),
+      P('showAll', '显示 1~8', 1, 0, 1, '关闭后只显示 9 和 13，画面更干净', 1, [[1, '显示'], [0, '只显示 9/13']]),
+    ],
+    // 不画线，这两项只用于样式面板的配色；数字标记由渲染层按 key 取色。
+    lines: () => NINE_LINE_DEFS.map(({ key, label, color }) => ({ key, label, color })),
+    title: p => `九转(${p.setup})`,
+    compute(bars, p) { return computeNine(bars, p); },
+  },
+
+  kd: {
+    id: 'kd', name: '随机指标 KD', short: 'KD', kind: 'pane',
+    params: [
+      P('n', '周期 N', 9, 2, 250),
+      P('m1', 'K 平滑 M1', 3, 1, 250),
+      P('m2', 'D 平滑 M2', 3, 1, 250),
+    ],
+    lines: () => [
+      { key: 'k', label: 'K', color: '#f2c14e' },
+      { key: 'd', label: 'D', color: '#4c9aff' },
+    ],
+    title: p => `KD(${p.n},${p.m1},${p.m2})`,
+    compute(bars, p) {
+      const len = bars.length;
+      const rsv = new Array(len).fill(NaN);
+      const highs = bars.map(b => b.high);
+      const lows = bars.map(b => b.low);
+      const c = closes(bars);
+      for (let i = 0; i < len; i++) {
+        const hh = highest(highs, p.n, i);
+        const ll = lowest(lows, p.n, i);
+        rsv[i] = hh > ll ? ((c[i] - ll) / (hh - ll)) * 100 : 50;
+      }
+      const k = tdxSma(rsv, p.m1, 1);
+      const d = tdxSma(k, p.m2, 1);
+      return { lines: [
+        { key: 'k', label: 'K', color: '#f2c14e', values: k },
+        { key: 'd', label: 'D', color: '#4c9aff', values: d },
+      ] };
+    },
   },
 
   channel: {
@@ -434,8 +480,8 @@ export const REGISTRY = {
 };
 
 /** 副图与主图叠加的可选项，供 UI 直接使用。 */
-export const PANE_OPTIONS = ['volume', 'kdj', 'macd', 'rsi', 'dmi', 'cci', 'obv', 'wr', 'trix'];
-export const OVERLAY_OPTIONS = ['ma', 'ema', 'boll', 'channel', 'mos'];
+export const PANE_OPTIONS = ['volume', 'kdj', 'kd', 'macd', 'rsi', 'dmi', 'cci', 'obv', 'wr', 'trix'];
+export const OVERLAY_OPTIONS = ['ma', 'ema', 'boll', 'channel', 'mos', 'nine'];
 
 export function defaultParams(id) {
   const meta = REGISTRY[id];

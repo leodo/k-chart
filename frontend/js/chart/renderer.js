@@ -147,10 +147,14 @@ export class Renderer {
       const range = pane.scale.apply(auto.lo, auto.hi);
       this._autoRanges.set(pane.id, { ...auto, height: rect.height });
       const h = Math.max(1, rect.height);
+      // 伦敦金/银没有成交量：数量全 0 时不画刻度/柱，只留一行说明
+      const empty = pane.indicator === 'volume'
+        && !bars.slice(start, end + 1).some(b => (b.volume || 0) > 0);
       return {
         ...pane, ...rect,
         autoLo: auto.lo, autoHi: auto.hi,
         lo: range.lo, hi: range.hi,
+        empty,
         titleRect: { x: left, y: rect.top, w: Math.min(230, vp.plotWidth * 0.4), h: 20 },
         separatorY: i < this.panes.panes.length - 1 ? rect.bottom : null,
         priceToY: p => rect.top + ((range.hi - p) / (range.hi - range.lo)) * h,
@@ -215,7 +219,7 @@ export class Renderer {
       timeAxisY: this.height - timeH,
       barWidth: vp.barWidth, start, end, endDraw,
       bars, period: this.store.period, symbol: this.store.symbol,
-      priceDigits: main.hi >= 1000 ? 0 : 2,
+      priceDigits: Number.isFinite(this.store.digits) ? this.store.digits : (main.hi >= 1000 ? 0 : 2),
       indexToX, xToIndex,
       priceToY: main.priceToY, yToPrice: main.yToPrice,
       priceH: main.height, volTop: main.top,

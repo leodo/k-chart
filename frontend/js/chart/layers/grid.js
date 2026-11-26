@@ -13,12 +13,14 @@ export function drawGrid(ctx, g) {
     ctx.fillStyle = '#101722';
     ctx.fillRect(left, p.top, width - left - right, p.height);
     ctx.strokeStyle = g.colors.grid;
-    for (let i = 0; i <= lastTick; i++) {
-      const y = Math.round(p.top + (p.height * i) / 4) + 0.5;
-      ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(width - right, y); ctx.stroke();
-      const value = p.yToPrice(y);
-      ctx.fillStyle = g.colors.axis;
-      ctx.fillText(formatPaneValue(value, p, g), width - right + 7, y);
+    if (!p.empty) {
+      for (let i = 0; i <= lastTick; i++) {
+        const y = Math.round(p.top + (p.height * i) / 4) + 0.5;
+        ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(width - right, y); ctx.stroke();
+        const value = p.yToPrice(y);
+        ctx.fillStyle = g.colors.axis;
+        ctx.fillText(formatPaneValue(value, p, g), width - right + 7, y);
+      }
     }
     ctx.strokeStyle = '#1e2936';
     ctx.beginPath(); ctx.moveTo(left, Math.round(p.bottom) + 0.5); ctx.lineTo(width - right, Math.round(p.bottom) + 0.5); ctx.stroke();

@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config
+from .adapters.spot import SpotAdapter
 from .adapters.tdx_ext import TdxExtAdapter
 from .domain.periods import is_supported
 from .services.cache import BarCache
@@ -20,8 +21,9 @@ from .services.vix import ensure_series, refresh_all, vix_store
 log = logging.getLogger("k-chart")
 
 adapter = TdxExtAdapter()
+spot = SpotAdapter()
 cache = BarCache()
-service = MarketDataService(adapter, cache)
+service = MarketDataService({"tdx": adapter, "spot": spot}, cache)
 hub = RealtimeHub(service)
 
 
@@ -84,6 +86,7 @@ async def bars(
             "symbol": info.code,
             "name": info.name,
             "period": period,
+            "digits": info.digits,
             "bars": [b.to_dict() for b in data],
         }
     except KeyError as exc:
@@ -98,6 +101,8 @@ async def vix_list():
     """全部品种的最新隐波指数；没有期权或尚未计算的品种 vix 为 null。"""
     rows = await asyncio.to_thread(vix_store.latest_all)
     latest = {row["symbol"]: row for row in rows}
+    # 伦敦金/银没有国内期权链，不参与隐波总览
+    products = [s for s in service.symbols if s.session == "cn"]
     return [
         {
             "symbol": s.code,
@@ -110,7 +115,7 @@ async def vix_list():
             "iv_next": latest.get(s.code, {}).get("iv_next"),
             "date": latest.get(s.code, {}).get("date"),
         }
-        for s in service.symbols
+        for s in products
     ]
 
 
@@ -122,6 +127,8 @@ async def vix_series(
 ):
     try:
         info = service.resolve(symbol)
+        if info.session != "cn":
+            return JSONResponse({"error": f"{info.name}没有期权链，无法计算隐波"}, status_code=400)
         if period in ("5m", "15m", "30m", "1h"):
             rows = await asyncio.to_thread(vix_store.series_intraday, info.code, period, 2000)
             return {"symbol": info.code, "name": info.name, "period": period, "series": rows}
@@ -136,10 +143,11 @@ async def vix_series(
 
 @app.get("/api/vix/refresh")
 async def vix_refresh():
-    """后台重算全部品种的隐波序列。"""
-    task = asyncio.create_task(asyncio.to_thread(refresh_all, [s.to_dict() for s in service.symbols]))
+    """后台重算全部品种的隐波序列（仅国内期货品种）。"""
+    products = [s for s in service.symbols if s.session == "cn"]
+    task = asyncio.create_task(asyncio.to_thread(refresh_all, [s.to_dict() for s in products]))
     app.state.vix_refresh_task = task
-    return {"started": True, "symbols": len(service.symbols)}
+    return {"started": True, "symbols": len(products)}
 
 
 @app.websocket("/ws")

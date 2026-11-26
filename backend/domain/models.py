@@ -25,6 +25,19 @@ def trading_ts(time_str: str) -> int:
     return int(dt.timestamp() * 1000)
 
 
+def wall_ts(time_str: str) -> int:
+    """真实墙钟时间戳。
+
+    伦敦金/银等 24 小时连续交易的品种没有"夜盘归下一交易日"的约定，
+    时间标签就是真实时间，直接转时间戳即可（用 trading_ts 会打乱排序）。
+    """
+    try:
+        dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M")
+    except ValueError:
+        dt = datetime.fromtimestamp(0)
+    return int(dt.timestamp() * 1000)
+
+
 @dataclass(slots=True)
 class Bar:
     time: str          # 'YYYY-MM-DD HH:MM'
@@ -77,10 +90,13 @@ class Quote:
 
 @dataclass(slots=True)
 class SymbolInfo:
-    code: str          # RBL9
-    market: int        # 30
-    name: str          # 螺纹加权
-    exchange: str      # SHFE / DCE / CZCE / GFEX / CFFEX
+    code: str          # RBL9 / XAU
+    market: int        # 30 / 9001（外部数据源用独立编号，避免与通达信市场冲突）
+    name: str          # 螺纹加权 / 伦敦金
+    exchange: str      # SHFE / DCE / ... / SPOT
+    source: str = "tdx"     # 数据源：tdx（通达信 7727）/ sina（新浪外盘现货）
+    session: str = "cn"     # 交易时段：cn（国内期货，夜盘归下一交易日）/ global（24 小时连续）
+    digits: int | None = None  # 价格小数位；None 表示沿用前端按量级推断
 
     @property
     def key(self) -> str:

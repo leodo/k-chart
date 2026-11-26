@@ -18,6 +18,8 @@ export function drawOverlayLines(ctx, g) {
     }
     // 文字标记（MOS 的 ●底部结构 / ▲低点 等）：跟着 K 线走，压在图上方。
     if (data.markers?.length) drawMarkers(ctx, g, data.markers);
+    // 神奇九转的数字标记：1~8 贴着 K 线，9/13 画成强调圆标。
+    if (data.nineMarkers?.length) drawNineMarkers(ctx, g, data.nineMarkers, o.style);
     // 触点圆圈已移除：它会压在 K 线上挡住形态，用户明确要求不要画。
   }
   ctx.restore();
@@ -62,6 +64,54 @@ function drawMarkers(ctx, g, markers) {
     ctx.fillStyle = m.color;
     ctx.fillText(m.text, x, y);
     lastX.set(m.text, x);
+  }
+  ctx.restore();
+}
+
+/**
+ * 神奇九转数字：1~8 半透明贴着对应 K 线，9/13 加实心底圈突出显示。
+ * 数字锚在高/低价附近而不是固定价格比例，缩放价格轴时不会飘离 K 线。
+ */
+function drawNineMarkers(ctx, g, markers, style) {
+  const end = g.endDraw ?? g.end;
+  const { top, bottom } = g.main;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const minX = g.left + 9, maxX = g.width - g.right - 9;
+  for (const m of markers) {
+    if (m.i < g.start || m.i > end) continue;
+    // 柱太密时 1~8 会糊成一片，只保留关键数字。
+    if (!m.strong && g.barWidth < 7) continue;
+    if (style?.visible?.[m.key] === false) continue;
+    const color = style?.lineColors?.[m.key] || m.color;
+    const anchorY = g.main.priceToY(m.price);
+    if (anchorY < top - 14 || anchorY > bottom + 14) continue;
+    const x = Math.max(minX, Math.min(maxX, g.indexToX(m.i)));
+    const gap = m.strong ? 13 : 10;
+    const y = Math.max(top + 8, Math.min(bottom - 8,
+      m.side === 'below' ? anchorY + gap : anchorY - gap));
+    ctx.globalAlpha = 1;
+    if (m.strong) {
+      ctx.beginPath();
+      ctx.arc(x, y, 7.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(13, 17, 23, .92)';
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.font = 'bold 10px ui-monospace, Menlo, Consolas, monospace';
+      ctx.fillStyle = color;
+      ctx.fillText(m.text, x, y + 0.5);
+    } else {
+      ctx.globalAlpha = 0.58;
+      ctx.font = '10px ui-monospace, Menlo, Consolas, monospace';
+      ctx.lineWidth = 2.6;
+      ctx.strokeStyle = 'rgba(13, 17, 23, .85)';
+      ctx.strokeText(m.text, x, y);
+      ctx.fillStyle = color;
+      ctx.fillText(m.text, x, y);
+    }
   }
   ctx.restore();
 }

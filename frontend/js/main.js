@@ -26,6 +26,7 @@ const TOOL_LABELS = {
 const SHAPE_LABELS = TOOL_LABELS;
 
 const canvas = document.getElementById('canvas');
+const nineBtn = document.getElementById('nine-toggle');
 const singleChart = new Chart(canvas);
 const allCharts = new Set([singleChart]);
 const chartCallbacks = {};
@@ -423,6 +424,7 @@ const toolsMenu = bindMenu(
 document.getElementById('tool-select').addEventListener('click', () => selectTool('select'));
 
 function refreshMenus() {
+  nineBtn.classList.toggle('active', chart.panes.hasOverlay('nine'));
   overlayMenu.setItems(OVERLAY_OPTIONS.map(id => ({
     label: id === 'channel' ? '自动线（支撑/压力/通道）' : REGISTRY[id].short,
     value: id, active: chart.panes.hasOverlay(id),
@@ -636,6 +638,16 @@ async function toggleVix() {
 }
 document.getElementById('vix-toggle').addEventListener('click', toggleVix);
 
+/* ---------- 神奇九转（主图数字标记） ---------- */
+nineBtn.addEventListener('click', () => {
+  const on = chart.panes.hasOverlay('nine');
+  if (on) chart.removeOverlay('nine');
+  else chart.addOverlay('nine');
+  refreshMenus();
+  scheduleSessionSave();
+  controls.setStatus(on ? '已关闭神奇九转' : '已开启神奇九转（1~9 / 13）');
+});
+
 /* ---------- 布局与模板 ---------- */
 function captureFullLayout() {
   return {
@@ -766,14 +778,17 @@ document.getElementById('fullscreen').addEventListener('click', toggleFullscreen
 const palette = new CommandPalette();
 document.getElementById('cmd-btn').addEventListener('click', () => palette.open());
 palette.setCommands([
+  { title: '上一个品种', group: '品种', keywords: 'prev symbol 上一个 翻页 PageUp', run: () => controls.stepSymbol(-1) },
+  { title: '下一个品种', group: '品种', keywords: 'next symbol 下一个 翻页 PageDown', run: () => controls.stepSymbol(1) },
   ...PERIOD_LIST.map(([id, label]) => ({ title: `周期：${label}`, group: '视图', keywords: id, run: () => { controls.setPeriod(id); applyPeriod(id); } })),
   { title: '四视图：开启 / 还原', group: '视图', keywords: '四视图 four view 30m 1h 1d 1w', run: () => mvButton.click() },
   { title: '隐波：叠加 / 关闭（独立纵轴）', group: '指标', keywords: 'vix 隐波 波动率 叠加', run: () => document.getElementById('vix-toggle').click() },
+  { title: '神奇九转：叠加 / 关闭', group: '指标', keywords: '九转 nine TD 神奇九转 1-9 13', run: () => nineBtn.click() },
   { title: '打开隐波总览页', group: '工具', keywords: 'vix 隐波 总览 列表', run: () => { location.href = './vix.html'; } },
   { title: '显示全部历史', group: '视图', keywords: 'all fit', run: () => chart.fitAll() },
   { title: '回到最新 K 线', group: '视图', keywords: 'latest end', run: () => chart.fit() },
   ...PANE_OPTIONS.map(id => ({ title: `添加副图：${REGISTRY[id].short}`, group: '指标', keywords: id, run: () => { chart.addPane(id); controls.setPaneCount(chart.panes.length); } })),
-  ...OVERLAY_OPTIONS.map(id => ({ title: `主图叠加：${id === 'channel' ? '自动线' : REGISTRY[id].short}`, group: '指标', keywords: id, run: () => { const o = chart.addOverlay(id); refreshMenus(); if (o) openSettings({ kind: 'overlay', id: o.id, indicator: o.id, x: 300, y: 120 }); } })),
+  ...OVERLAY_OPTIONS.filter(id => id !== 'nine').map(id => ({ title: `主图叠加：${id === 'channel' ? '自动线' : REGISTRY[id].short}`, group: '指标', keywords: id, run: () => { const o = chart.addOverlay(id); refreshMenus(); if (o) openSettings({ kind: 'overlay', id: o.id, indicator: o.id, x: 300, y: 120 }); } })),
   { title: '自动线：通道 / 趋势线', group: '自动线', keywords: 'channel 通道', run: () => setAutoLine(0) },
   { title: '自动线：支撑线', group: '自动线', keywords: 'support 支撑', run: () => setAutoLine(1) },
   { title: '自动线：压力线', group: '自动线', keywords: 'resistance 压力', run: () => setAutoLine(2) },
@@ -897,21 +912,29 @@ function restoreViewAnchor(c, a) {
 }
 
 async function load(options = {}) {
-  const viewAnchor = options.keepView ? captureViewAnchor(chart, state.period) : null;
+  // 普通视图专用：始终写 singleChart。四视图开启期间若还有在途请求，
+  // 走 chart 代理会落进「当前激活格」，把 30m 格覆盖成 5m 数据。
+  // 注意初始化恢复四视图时 activeChart() 还没有实例，此时仍需加载单图，
+  // 否则退出四视图后单图的视口/缩放会丢。
+  if (multiView?.enabled && multiView.activeChart()) return;
+  const viewAnchor = options.keepView ? captureViewAnchor(singleChart, state.period) : null;
   const token = ++loadToken;
   controls.setStatus('加载中…');
   try {
     const data = await api.bars(state.symbol, state.period, 1500);
-    if (token !== loadToken) return;
-    chart.setData(data.bars, { symbol: data.symbol, period: data.period });
+    if (token !== loadToken || (multiView?.enabled && multiView.activeChart())) return;
+    singleChart.setData(data.bars, { symbol: data.symbol, period: data.period, digits: data.digits });
+    // 以「实际加载成功的数据周期」为准，避免请求失败/竞态时按钮高亮与图例周期不一致。
+    state.period = data.period;
+    controls.setPeriod(data.period);
     if (pendingViewport) {
-      const vp = chart.vp;
+      const vp = singleChart.vp;
       if (Number.isFinite(pendingViewport.barWidth)) vp.barWidth = pendingViewport.barWidth;
       if (Number.isFinite(pendingViewport.first)) vp.setRawFirst(pendingViewport.first);
       pendingViewport = null;
-    } else if (!restoreViewAnchor(chart, viewAnchor) && window.matchMedia('(max-width: 760px)').matches) {
+    } else if (!restoreViewAnchor(singleChart, viewAnchor) && window.matchMedia('(max-width: 760px)').matches) {
       // 手机首次进入：只显示最近一段，柱宽足够看清 K 线；「全部」按钮仍可看全历史。
-      chart.fitRecent(160);
+      singleChart.fitRecent(160);
     }
     feed.subscribe(data.symbol, data.period);
     controls.setStatus(`${data.bars.length} 根`);
@@ -919,6 +942,9 @@ async function load(options = {}) {
     else applyVixOverlay();
   } catch (err) {
     if (token !== loadToken) return;
+    // 加载失败时把周期高亮退回到图上实际数据，避免「日线高亮、1 分钟图」的错位。
+    state.period = singleChart.store.period || state.period;
+    controls.setPeriod(state.period);
     controls.setStatus(String(err.message || err), true);
   }
 }
